@@ -14,6 +14,7 @@ from django.conf import settings
 from django.core.files.storage import DefaultStorage, FileSystemStorage
 from django.core.urlresolvers import reverse
 from django.db import transaction
+from django.db.models import Count
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect
 from questionnaires.exceptions import InvalidXLSForm
@@ -37,6 +38,11 @@ class OrganizationList(PermissionRequiredMixin, generic.ListView):
     permission_filter_queryset = (lambda self, view, o: ('org.view',)
                                   if o.archived is False
                                   else ('org.view_archived',))
+
+    def get_queryset(self):
+        # This annotation is needed to avoid generating a query for each
+        # organization in order to count the number of projects per org
+        return Organization.objects.annotate(num_projects=Count('projects'))
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -295,6 +301,12 @@ class UserList(LoginPermissionRequiredMixin, generic.ListView):
     template_name = 'organization/user_list.html'
     permission_required = 'user.list'
     permission_denied_message = error_messages.USERS_LIST
+
+    def get_queryset(self):
+        # Since we are querying on the organizations of each user, we should
+        # prefetch the organizations when querying for all users instead of
+        # doing a separate organizations query for every user
+        return User.objects.prefetch_related('organizations')
 
     def get_context_data(self, **kwargs):
         context = super(UserList, self).get_context_data(**kwargs)
