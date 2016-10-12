@@ -189,7 +189,7 @@ class OrgAdminCheckMixin:
                 role.user for role in OrganizationRole.objects.filter(
                     organization=org,
                     admin=True
-                )
+                ).select_related('user')
             ]
             self.is_admin = False
             if len(su_role) > 0:

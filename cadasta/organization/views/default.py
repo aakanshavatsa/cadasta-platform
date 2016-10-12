@@ -9,7 +9,7 @@ import formtools.wizard.views as wizard
 from accounts.models import User
 from core.mixins import (LoginPermissionRequiredMixin, PermissionRequiredMixin,
                          update_permissions)
-from core.views.mixins import ArchiveMixin, SuperUserCheckMixin
+from core.views import mixins as core_mixins
 from django.conf import settings
 from django.core.files.storage import DefaultStorage, FileSystemStorage
 from django.core.urlresolvers import reverse
@@ -75,6 +75,7 @@ class OrganizationAdd(LoginPermissionRequiredMixin, generic.CreateView):
 class OrganizationDashboard(PermissionRequiredMixin,
                             mixins.OrgAdminCheckMixin,
                             mixins.ProjectCreateCheckMixin,
+                            core_mixins.CacheObjectMixin,
                             generic.DetailView):
     def get_actions(self, view, request):
         if self.get_object().archived:
@@ -131,7 +132,7 @@ class OrganizationEdit(LoginPermissionRequiredMixin,
 
 
 class OrgArchiveView(LoginPermissionRequiredMixin,
-                     ArchiveMixin,
+                     core_mixins.ArchiveMixin,
                      generic.DetailView):
     model = Organization
 
@@ -167,6 +168,7 @@ class OrganizationUnarchive(OrgArchiveView):
 class OrganizationMembers(LoginPermissionRequiredMixin,
                           mixins.OrgAdminCheckMixin,
                           mixins.ProjectCreateCheckMixin,
+                          core_mixins.CacheObjectMixin,
                           generic.DetailView):
     model = Organization
     template_name = 'organization/organization_members.html'
@@ -356,28 +358,27 @@ class ProjectList(PermissionRequiredMixin,
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         context['any_archived'] = self.get_queryset().filter(
-                                                        archived=True).exists()
+            archived=True).exists()
         return context
 
     def get(self, request, *args, **kwargs):
         user = self.request.user
-        if (hasattr(user, 'assigned_policies') and
-           self.is_superuser):
-                projects = Project.objects.all()
+        if self.is_superuser:
+            projects = Project.objects.select_related('organization')
         else:
             projects = []
-            projects.extend(Project.objects.filter(access='public',
-                                                   archived=False))
+            projects.extend(Project.objects.filter(
+                access='public', archived=False).select_related(
+                    'organization'))
             if hasattr(user, 'organizations'):
-                for org in Organization.objects.all():
-                    if org in user.organizations.all():
-                        projects.extend(org.projects.filter(access='private',
-                                                            archived=False))
-                        if OrganizationRole.objects.get(organization=org,
-                                                        user=user
-                                                        ).admin is True:
-                            projects.extend(
-                                org.projects.filter(archived=True))
+                for org in user.organizations.all():
+                    projects.extend(org.projects.filter(
+                        access='private', archived=False).select_related(
+                            'organization'))
+                    if OrganizationRole.objects.get(organization=org,
+                                                    user=user).admin is True:
+                        projects.extend(org.projects.filter(
+                            archived=True).select_related('organization'))
         self.object_list = sorted(
             projects, key=lambda p: p.organization.slug + ':' + p.slug)
         context = self.get_context_data()
@@ -447,7 +448,7 @@ def add_wizard_permission_required(self, view, request):
         return 'project.create'
 
 
-class ProjectAddWizard(SuperUserCheckMixin,
+class ProjectAddWizard(core_mixins.SuperUserCheckMixin,
                        LoginPermissionRequiredMixin,
                        wizard.SessionWizardView):
     permission_required = add_wizard_permission_required
@@ -670,13 +671,17 @@ class ProjectEditPermissions(ProjectEdit, generic.UpdateView):
     permission_denied_message = error_messages.PROJ_EDIT
 
 
-class ProjectArchive(ProjectEdit, ArchiveMixin, generic.DetailView):
+class ProjectArchive(ProjectEdit,
+                     core_mixins.ArchiveMixin,
+                     generic.DetailView):
     permission_required = 'project.archive'
     permission_denied_message = error_messages.PROJ_ARCHIVE
     do_archive = True
 
 
-class ProjectUnarchive(ProjectEdit, ArchiveMixin, generic.DetailView):
+class ProjectUnarchive(ProjectEdit,
+                       core_mixins.ArchiveMixin,
+                       generic.DetailView):
     def patch_actions(self, request, view=None):
         if self.get_organization().archived:
             return False
