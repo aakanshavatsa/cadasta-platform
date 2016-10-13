@@ -39,10 +39,9 @@ class OrganizationList(PermissionRequiredMixin, generic.ListView):
                                   if o.archived is False
                                   else ('org.view_archived',))
 
-    def get_queryset(self):
-        # This annotation is needed to avoid generating a query for each
-        # organization in order to count the number of projects per org
-        return Organization.objects.annotate(num_projects=Count('projects'))
+    # This queryset annotation is needed to avoid generating a query for each
+    # organization in order to count the number of projects per org
+    queryset = Organization.objects.annotate(num_projects=Count('projects'))
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
