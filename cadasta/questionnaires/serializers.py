@@ -59,11 +59,13 @@ class QuestionSerializer(serializers.ModelSerializer):
 
 class QuestionGroupSerializer(serializers.ModelSerializer):
     questions = QuestionSerializer(many=True, read_only=True)
+    question_groups = serializers.SerializerMethodField()
 
     class Meta:
         model = models.QuestionGroup
-        fields = ('id', 'name', 'label', 'questions',)
-        read_only_fields = ('id', 'questions',)
+        fields = ('id', 'name', 'label',  'type', 'questions',
+                  'question_groups', )
+        read_only_fields = ('id', 'questions', 'question_groups', )
 
     def find_questions(self, name):
         if isinstance(self.initial_data, list):
@@ -73,10 +75,37 @@ class QuestionGroupSerializer(serializers.ModelSerializer):
 
         return self.initial_data.get('questions', [])
 
+    def find_question_groups(self, name):
+        if isinstance(self.initial_data, list):
+            for group in self.initial_data:
+                if group['name'] == name:
+                    return group.get('question_groups', [])
+
+        return self.initial_data.get('question_groups', [])
+
+    def get_question_groups(self, group):
+        serializer = QuestionGroupSerializer(
+            group.question_groups.all(),
+            many=True,
+        )
+        return serializer.data
+
     def create(self, validated_data):
         group = models.QuestionGroup.objects.create(
             questionnaire_id=self.context.get('questionnaire_id'),
+            question_group_id=self.context.get('question_group_id'),
             **validated_data)
+
+        questiongroup_serializer = QuestionGroupSerializer(
+                data=self.find_question_groups(group.name),
+                many=True,
+                context={
+                    'question_group_id': group.id,
+                    'questionnaire_id': self.context.get('questionnaire_id')
+                }
+            )
+        questiongroup_serializer.is_valid(raise_exception=True)
+        questiongroup_serializer.save()
 
         question_serializer = QuestionSerializer(
                 data=self.find_questions(group.name),
@@ -86,7 +115,6 @@ class QuestionGroupSerializer(serializers.ModelSerializer):
                     'questionnaire_id': self.context.get('questionnaire_id')
                 }
             )
-
         question_serializer.is_valid(raise_exception=True)
         question_serializer.save()
 

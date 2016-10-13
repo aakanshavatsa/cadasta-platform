@@ -20,6 +20,7 @@ QUESTION_SCHEMA = {
 QUESTION_GROUP_SCHEMA = {
     'name': {'type': 'string', 'required': True},
     'label': {'type': 'string'},
+    'type': {'type': 'string', 'required': True},
 }
 
 QUESTION_OPTION_SCHEMA = {
@@ -90,10 +91,16 @@ def validate_question_groups(groups):
 
     for group in groups:
         group_errs = validate_schema(QUESTION_GROUP_SCHEMA, group)
-        questions_errs = validate_questions(group.get('questions', []))
 
+        questions_errs = validate_questions(group.get('questions', []))
         if any([q for q in questions_errs]):
             group_errs['questions'] = questions_errs
+
+        questions_group_errs = validate_question_groups(
+            group.get('question_groups', []))
+        if any([q for q in questions_group_errs]):
+            group_errs['question_groups'] = questions_group_errs
+
         errors.append(group_errs)
 
     return errors

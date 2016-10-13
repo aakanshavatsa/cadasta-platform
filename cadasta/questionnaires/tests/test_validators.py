@@ -104,6 +104,7 @@ class QuestionGroupTestCase(TestCase):
         data = [{
             'name': "location_attributes",
             'label': "Location Attributes",
+            'type': 'group',
             'questions': [{
                 'name': "start",
                 'label': 'Start',
@@ -116,6 +117,7 @@ class QuestionGroupTestCase(TestCase):
     def test_invalid_questiongroup(self):
         data = [{
             'label': "location attributes",
+            'type': 'group',
             'questions': [{
                 'label': 'Start',
                 'type': "ST",
@@ -126,6 +128,48 @@ class QuestionGroupTestCase(TestCase):
                            'questions': [
                                 {'name': ['This field is required.']}
                             ]}
+                          ]
+
+    def test_valid_nested_questiongroup(self):
+        data = [{
+            'name': "location_attributes",
+            'label': "Location Attributes",
+            'type': 'repeat',
+            'question_groups': [{
+                'name': "location_attributes",
+                'label': "Location Attributes",
+                'type': 'group',
+            }],
+            'questions': [{
+                'name': "start",
+                'label': 'Start',
+                'type': "ST",
+            }]
+        }]
+        errors = validators.validate_question_groups(data)
+        assert errors == [{}]
+
+    def test_invalid_nested_questiongroup(self):
+        data = [{
+            'label': "Location Attributes",
+            'type': 'repeat',
+            'question_groups': [{
+                'name': "location_attributes",
+                'label': "Location Attributes"
+            }],
+            'questions': [{
+                'label': 'Start',
+                'type': "ST",
+            }]
+        }]
+        errors = validators.validate_question_groups(data)
+        print(errors)
+        assert errors == [{'name': ['This field is required.'],
+                           'questions': [
+                                {'name': ['This field is required.']}],
+                          'question_groups': [
+                                {'type': ['This field is required.']}]
+                           }
                           ]
 
 

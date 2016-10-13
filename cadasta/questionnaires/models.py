@@ -65,6 +65,10 @@ class QuestionGroup(RandomIDModel):
     label = models.CharField(max_length=2500, null=True, blank=True)
     questionnaire = models.ForeignKey(Questionnaire,
                                       related_name='question_groups')
+    question_group = models.ForeignKey('QuestionGroup',
+                                       related_name='question_groups',
+                                       null=True)
+    type = models.CharField(max_length=50, default='group')
 
     objects = managers.QuestionGroupManager()
 

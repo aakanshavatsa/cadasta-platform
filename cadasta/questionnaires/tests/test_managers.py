@@ -95,12 +95,12 @@ class CreateChildrenTest(TestCase):
         create_children(children, kwargs={'questionnaire': questionnaire})
 
         assert models.QuestionGroup.objects.filter(
-            questionnaire=questionnaire).count() == 1
+            questionnaire=questionnaire).count() == 2
         assert models.Question.objects.filter(
             questionnaire=questionnaire).count() == 3
         assert models.Question.objects.filter(
             questionnaire=questionnaire,
-            question_group__isnull=False).count() == 1
+            question_group__isnull=False).count() == 2
 
 
 class CreateOptionsTest(TestCase):
@@ -214,6 +214,32 @@ class QuestionGroupManagerTest(TestCase):
         assert model.questionnaire == questionnaire
         assert model.label == question_group_dict['label']
         assert model.name == question_group_dict['name']
+        assert model.type == 'group'
+        assert model.question_groups.count() == 0
+
+    def test_create_nested_group_from_dict(self):
+        question_group_dict = {
+            'label': 'Repeat',
+            'name': 'repeat_me',
+            'type': 'repeat',
+            'children': [{
+                'label': 'Basic Select question types',
+                'name': 'select_questions',
+                'type': 'group'
+            }]
+        }
+        questionnaire = factories.QuestionnaireFactory.create()
+
+        model = models.QuestionGroup.objects.create_from_dict(
+            dict=question_group_dict,
+            questionnaire=questionnaire
+        )
+        assert model.questionnaire == questionnaire
+        assert model.label == question_group_dict['label']
+        assert model.name == question_group_dict['name']
+        assert model.type == 'repeat'
+        assert model.question_groups.count() == 1
+        assert questionnaire.question_groups.count() == 2
 
 
 class QuestionManagerTest(TestCase):

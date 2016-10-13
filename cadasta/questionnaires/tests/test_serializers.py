@@ -479,6 +479,7 @@ class QuestionnaireSerializerTest(TestCase):
                     "id": "xnbj4kdr66w8k478f6cdta3n",
                     "name": "meta",
                     "label": None,
+                    "type": 'group',
                     "questions": [
                         {
                             "id": "8v5znbuyvtyinsdd96ytyrui",
@@ -497,6 +498,7 @@ class QuestionnaireSerializerTest(TestCase):
                     "id": "9z6k336q7t8ws6qvf39akvym",
                     "name": "tenure_relationship_attributes",
                     "label": "Tenure relationship attributes",
+                    "type": 'group',
                     "questions": [
                         {
                             "id": "mprrfpk5cyg69f9tr7jvv742",
@@ -515,6 +517,7 @@ class QuestionnaireSerializerTest(TestCase):
                     "id": "48gdce8vrqfsw6ikpr77p5u5",
                     "name": "party_relationship_attributes",
                     "label": "Party relationship attributes",
+                    "type": 'group',
                     "questions": [
                         {
                             "id": "njemw8e6n2squqghiqgx8a7b",
@@ -533,6 +536,7 @@ class QuestionnaireSerializerTest(TestCase):
                     "id": "n2eg65xw5mtby8peae38mcb6",
                     "name": "party_attributes_group",
                     "label": "Group Party Attributes",
+                    "type": 'group',
                     "questions": [
                         {
                             "id": "xta42t6ye53ujetniebknytw",
@@ -562,6 +566,7 @@ class QuestionnaireSerializerTest(TestCase):
                     "id": "fwfbg2tc4ffbw4qnnmb46bzz",
                     "name": "party_attributes_individual",
                     "label": "Individual Party Attributes",
+                    "type": 'group',
                     "questions": [
                         {
                             "id": "ph3xrdtxkcwacqavg8k8rj3v",
@@ -630,6 +635,7 @@ class QuestionnaireSerializerTest(TestCase):
                     "id": "7678k4ixg2idpptda46fh5f8",
                     "name": "party_attributes_default",
                     "label": "Default Party Attributes",
+                    "type": 'group',
                     "questions": [
                         {
                             "id": "kw8t69w57aaw2jbuy72ky8bs",
@@ -648,6 +654,7 @@ class QuestionnaireSerializerTest(TestCase):
                     "id": "iapqx3jrcx8vmzp73r465d3a",
                     "name": "location_attributes",
                     "label": "Location Attributes",
+                    "type": 'group',
                     "questions": [
                         {
                             "id": "bj7z2hz3jnz8c76pcwks4v2y",
@@ -830,13 +837,21 @@ class QuestionGroupSerializerTest(TestCase):
         not_in = factories.QuestionFactory.create(
             questionnaire=questionnaire
         )
-        question_group.refresh_from_db()
+        factories.QuestionGroupFactory.create_batch(
+            2,
+            questionnaire=questionnaire,
+            question_group=question_group
+        )
 
+        question_group.refresh_from_db()
         serializer = serializers.QuestionGroupSerializer(question_group)
         assert serializer.data['id'] == question_group.id
         assert serializer.data['name'] == question_group.name
         assert serializer.data['label'] == question_group.label
+        assert serializer.data['type'] == question_group.type
         assert len(serializer.data['questions']) == 2
+        assert len(serializer.data['question_groups']) == 2
+        assert all(g['name'] for g in serializer.data['question_groups'])
         assert not_in.id not in [q['id'] for q in serializer.data['questions']]
         assert 'questionnaire' not in serializer.data
 
@@ -855,6 +870,30 @@ class QuestionGroupSerializerTest(TestCase):
         question = questionnaire.question_groups.first()
         assert question.name == data['name']
         assert question.label == data['label']
+
+    def test_create_nested_group(self):
+        questionnaire = factories.QuestionnaireFactory.create()
+        data = {
+            'label': 'A question group',
+            'name': 'question_group',
+            'question_groups': [{
+                'label': 'Another question group',
+                'name': 'group_2',
+            }]
+        }
+        serializer = serializers.QuestionGroupSerializer(
+            data=data,
+            context={'questionnaire_id': questionnaire.id})
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        assert questionnaire.question_groups.count() == 2
+        question_group = questionnaire.question_groups.get(
+            name='question_group')
+        assert question_group.name == data['name']
+        assert question_group.label == data['label']
+        assert question_group.question_groups.count() == 1
+        nested_group = question_group.question_groups.first()
+        assert nested_group.question_groups.count() == 0
 
     def test_bulk_create_group(self):
         questionnaire = factories.QuestionnaireFactory.create()
