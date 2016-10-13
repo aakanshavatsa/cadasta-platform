@@ -116,6 +116,7 @@ class OrganizationDashboard(PermissionRequiredMixin,
 
 
 class OrganizationEdit(LoginPermissionRequiredMixin,
+                       core_mixins.CacheObjectMixin,
                        generic.UpdateView):
     model = Organization
     form_class = forms.OrganizationForm
